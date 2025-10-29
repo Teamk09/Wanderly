@@ -1,0 +1,7 @@
+{
+  "name": "Wanderly",
+  "description": "Wanderly is a web application that creates a tailored travel itinerary for anywhere in the world, allowing users to specify preferences towards certain activities, types of locations, or time-tested classics. The user can also blacklist activities to prevent them from showing up in an itinerary.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
