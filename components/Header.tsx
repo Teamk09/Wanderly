@@ -1,8 +1,6 @@
-
-import React from 'react';
-import { GlobeIcon } from './icons';
-import { useAuth } from '../context/AuthContext';
-import ThemeToggle from './ThemeToggle';
+import React from "react";
+import { GlobeIcon } from "./icons";
+import { useAuth } from "../context/AuthContext";
 
 const Header: React.FC = () => {
   const { user, logout } = useAuth();
@@ -13,12 +11,16 @@ const Header: React.FC = () => {
         <div className="flex items-center justify-between h-16">
           <a href="#/" className="flex items-center">
             <GlobeIcon className="h-8 w-8 text-amber-600" />
-            <span className="ml-3 text-2xl font-bold text-gray-900 dark:text-gray-100">Wanderly</span>
+            <span className="ml-3 text-2xl font-bold text-gray-900 dark:text-gray-100">
+              Wanderly
+            </span>
           </a>
           <div className="flex items-center space-x-4">
             {user ? (
               <>
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 hidden sm:block">Welcome, {user.name}!</span>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 hidden sm:block">
+                  Welcome, {user.name}!
+                </span>
                 <button
                   onClick={logout}
                   className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600"
@@ -42,7 +44,6 @@ const Header: React.FC = () => {
                 </a>
               </>
             )}
-             <ThemeToggle />
           </div>
         </div>
       </div>
