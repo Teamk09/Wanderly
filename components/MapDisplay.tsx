@@ -158,7 +158,6 @@ const MapDisplay: React.FC<MapDisplayProps> = ({ locations }) => {
       typeof window.google !== "undefined" &&
       typeof window.google.maps !== "undefined"
     ) {
-      const isDarkMode = document.documentElement.classList.contains("dark");
       const newMap = new window.google.maps.Map(mapRef.current, {
         center: { lat: 20, lng: 0 },
         zoom: 2,
@@ -166,29 +165,13 @@ const MapDisplay: React.FC<MapDisplayProps> = ({ locations }) => {
         mapTypeControl: false,
         streetViewControl: false,
         fullscreenControl: false,
-        styles: isDarkMode ? mapDarkStyle : [],
+        styles: mapDarkStyle,
       });
       setMap(newMap);
     }
   }, [isApiLoaded, map]);
 
-  // Effect to update map style when theme changes
-  useEffect(() => {
-    if (map) {
-      const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-          if (mutation.attributeName === "class") {
-            const isDarkMode = (
-              mutation.target as HTMLElement
-            ).classList.contains("dark");
-            map.setOptions({ styles: isDarkMode ? mapDarkStyle : [] });
-          }
-        });
-      });
-      observer.observe(document.documentElement, { attributes: true });
-      return () => observer.disconnect();
-    }
-  }, [map]);
+  // Map will always use the dark style; no runtime theme updates required.
 
   useEffect(() => {
     if (!map || !isApiLoaded) return;
@@ -274,7 +257,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({ locations }) => {
 
   if (apiKeyError) {
     return (
-      <div className="bg-red-100 dark:bg-red-900/30 border-l-4 border-red-500 text-red-700 dark:text-red-300 p-4 rounded-2xl shadow-lg h-64 md:h-96 flex flex-col justify-center">
+      <div className="bg-red-900/30 border-l-4 border-red-500 text-red-300 p-4 rounded-2xl shadow-lg h-64 md:h-96 flex flex-col justify-center">
         <h3 className="font-bold text-lg">Map Error</h3>
         <p>{apiKeyError}</p>
       </div>
@@ -282,13 +265,11 @@ const MapDisplay: React.FC<MapDisplayProps> = ({ locations }) => {
   }
 
   return (
-    <div className="bg-gray-200 dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden h-64 md:h-96 border border-transparent dark:border-gray-700">
+    <div className="bg-gray-800 rounded-2xl shadow-lg overflow-hidden h-64 md:h-96 border border-gray-700">
       {!isApiLoaded && !hasLocations && (
         <div className="w-full h-full flex items-center justify-center p-4">
           <div className="text-center">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
-              Loading Map...
-            </h3>
+            <h3 className="text-lg font-bold text-gray-100">Loading Map...</h3>
           </div>
         </div>
       )}
@@ -296,9 +277,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({ locations }) => {
         <div className="w-full h-full flex items-center justify-center p-4">
           <div className="text-center">
             <div className="text-5xl mb-4">📍</div>
-            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
-              Map{" "}
-            </h3>
+            <h3 className="text-lg font-bold text-gray-100">Map</h3>
           </div>
         </div>
       )}

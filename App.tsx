@@ -39,7 +39,7 @@ const App: React.FC = () => {
 
   return (
     <AuthProvider>
-      <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+      <div className="min-h-screen flex flex-col bg-gray-900 text-gray-200">
         <Header />
         <main className="flex-grow">{renderPage()}</main>
       </div>
