@@ -1,34 +1,44 @@
-
-import React, { useState } from 'react';
-import { UserPreferences } from '../types';
-import { PaperPlaneIcon } from './icons';
+import React, { useState } from "react";
+import { UserPreferences } from "../types";
 
 interface ItineraryPlannerProps {
   onGenerate: (preferences: UserPreferences) => void;
   isLoading: boolean;
 }
 
-const ItineraryPlanner: React.FC<ItineraryPlannerProps> = ({ onGenerate, isLoading }) => {
-  const [location, setLocation] = useState<string>('Tokyo, Japan');
-  const [preferences, setPreferences] = useState<string>('ramen, anime culture, shrines, city pop music');
-  const [dislikes, setDislikes] = useState<string>('nightclubs, overly crowded tourist traps');
+const ItineraryPlanner: React.FC<ItineraryPlannerProps> = ({
+  onGenerate,
+  isLoading,
+}) => {
+  const [location, setLocation] = useState<string>("Tokyo, Japan");
+  const [preferences, setPreferences] = useState<string>(
+    "ramen, anime culture, shrines, city pop music"
+  );
+  const [dislikes, setDislikes] = useState<string>(
+    "nightclubs, overly crowded tourist traps"
+  );
   const [duration, setDuration] = useState<number>(3);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (location.trim() === '') {
-        alert('Please enter a location.');
-        return;
+    if (location.trim() === "") {
+      alert("Please enter a location.");
+      return;
     }
     onGenerate({ location, preferences, dislikes, duration });
   };
 
   return (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg sticky top-8 border border-transparent dark:border-gray-700">
-      <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Plan Your Trip</h2>
+      <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+        Plan Your Trip
+      </h2>
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
-          <label htmlFor="location" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          <label
+            htmlFor="location"
+            className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+          >
             Destination
           </label>
           <input
@@ -41,9 +51,12 @@ const ItineraryPlanner: React.FC<ItineraryPlannerProps> = ({ onGenerate, isLoadi
             required
           />
         </div>
-         <div>
-          <label htmlFor="duration" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Trip Duration ({duration} {duration > 1 ? 'days' : 'day'})
+        <div>
+          <label
+            htmlFor="duration"
+            className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+          >
+            Trip Duration ({duration} {duration > 1 ? "days" : "day"})
           </label>
           <input
             type="range"
@@ -56,7 +69,10 @@ const ItineraryPlanner: React.FC<ItineraryPlannerProps> = ({ onGenerate, isLoadi
           />
         </div>
         <div>
-          <label htmlFor="preferences" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          <label
+            htmlFor="preferences"
+            className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+          >
             Likes & Preferences
           </label>
           <textarea
@@ -69,7 +85,10 @@ const ItineraryPlanner: React.FC<ItineraryPlannerProps> = ({ onGenerate, isLoadi
           />
         </div>
         <div>
-          <label htmlFor="dislikes" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          <label
+            htmlFor="dislikes"
+            className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+          >
             Dislikes & Blacklist
           </label>
           <textarea
@@ -86,8 +105,8 @@ const ItineraryPlanner: React.FC<ItineraryPlannerProps> = ({ onGenerate, isLoadi
           disabled={isLoading}
           className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 disabled:bg-amber-400 dark:disabled:bg-amber-500 disabled:cursor-not-allowed transition-colors"
         >
-          {isLoading ? 'Creating...' : 'Generate Itinerary'}
-          {!isLoading && <PaperPlaneIcon className="ml-2 h-5 w-5" />}
+          {isLoading ? "Creating..." : "Generate Itinerary"}
+          {/* icon removed per request */}
         </button>
       </form>
     </div>

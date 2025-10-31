@@ -1,5 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import { Itinerary, UserPreferences, GroundingChunk } from '../types';
+import { Itinerary, UserPreferences, GroundingChunk } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -39,36 +39,39 @@ const createPrompt = (preferences: UserPreferences): string => {
   `;
 };
 
-
-export const generateItinerary = async (preferences: UserPreferences): Promise<{ itinerary: Itinerary; citations: GroundingChunk[] }> => {
-  let rawText = '';
+export const generateItinerary = async (
+  preferences: UserPreferences
+): Promise<{ itinerary: Itinerary; citations: GroundingChunk[] }> => {
+  let rawText = "";
   try {
     const prompt = createPrompt(preferences);
     const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-        config: {
-            tools: [{googleSearch: {}}],
-        },
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        tools: [{ googleSearch: {} }],
+      },
     });
 
     rawText = response.text.trim();
-    // The model might still wrap the JSON in ```json ... ``` despite instructions. We need to extract it.
     const jsonMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
     const jsonText = jsonMatch ? jsonMatch[1] : rawText;
 
     const itinerary: Itinerary = JSON.parse(jsonText);
 
-    const citations = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    
-    const validCitations = citations.filter(c => (c.web && c.web.uri) || (c.maps && c.maps.uri));
+    const citations =
+      response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+
+    const validCitations = citations.filter(
+      (c) => (c.web && c.web.uri) || (c.maps && c.maps.uri)
+    );
 
     return { itinerary, citations: validCitations };
   } catch (error) {
     console.error("Error generating itinerary:", error);
     if (error instanceof SyntaxError) {
-        console.error("Invalid JSON response from AI. Raw text:", rawText);
-        throw new Error("The AI returned an invalid format. Please try again.");
+      console.error("Invalid JSON response from AI. Raw text:", rawText);
+      throw new Error("The AI returned an invalid format. Please try again.");
     }
     throw new Error("Could not connect to the itinerary generation service.");
   }

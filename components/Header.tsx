@@ -1,5 +1,5 @@
 import React from "react";
-import { GlobeIcon } from "./icons";
+// logo removed
 import { useAuth } from "../context/AuthContext";
 
 const Header: React.FC = () => {
@@ -10,8 +10,7 @@ const Header: React.FC = () => {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <a href="#/" className="flex items-center">
-            <GlobeIcon className="h-8 w-8 text-amber-600" />
-            <span className="ml-3 text-2xl font-bold text-gray-900 dark:text-gray-100">
+            <span className="text-2xl font-bold text-gray-900 dark:text-gray-100">
               Wanderly
             </span>
           </a>
