@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ItineraryLocation } from "../types";
 
 // Declare google for TypeScript to prevent type errors
@@ -116,30 +116,65 @@ const MapDisplay: React.FC<MapDisplayProps> = ({ locations }) => {
   const [markers, setMarkers] = useState<any[]>([]);
   const [isApiLoaded, setIsApiLoaded] = useState(false);
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
+  const [debugMessages, setDebugMessages] = useState<string[]>([]);
+
+  const appendDebug = useCallback((message: string, extra?: unknown) => {
+    const timestamp = new Date().toISOString();
+    const entry =
+      extra !== undefined
+        ? `${timestamp} ${message} :: ${JSON.stringify(extra)}`
+        : `${timestamp} ${message}`;
+    console.log("[MapDisplay]", message, extra ?? "");
+    setDebugMessages((prev) => [...prev.slice(-19), entry]);
+  }, []);
 
   useEffect(() => {
-    const apiKey = process.env.API_KEY;
+    appendDebug("Received locations", {
+      count: locations.length,
+      sample: locations.slice(0, 3).map((loc) => loc.address),
+    });
+  }, [locations, appendDebug]);
+
+  useEffect(() => {
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
     if (!apiKey) {
       setApiKeyError("API key is missing. The map cannot be displayed.");
+      appendDebug("Missing GOOGLE_MAPS_API_KEY env var");
       return;
     }
+
+    appendDebug("Attempting to load Google Maps script", {
+      hasApiKey: Boolean(apiKey),
+    });
 
     // Set up a global callback for Google Maps authentication failures
     window.gm_authFailure = () => {
       setApiKeyError(
         "Google Maps authentication failed. Please check if the API key is correct, has billing enabled, and is not restricted."
       );
+      appendDebug("gm_authFailure triggered");
     };
 
-    const scriptSrc = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=marker,geocoding`;
+    const scriptSrc = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
+
+    const existingScript = document.querySelector(`script[src="${scriptSrc}"]`);
+    if (existingScript) {
+      appendDebug("Using existing Google Maps script tag");
+    }
 
     loadScript(scriptSrc)
-      .then(() => setIsApiLoaded(true))
-      .catch(() =>
+      .then(() => {
+        appendDebug("Google Maps script loaded successfully");
+        setIsApiLoaded(true);
+      })
+      .catch((error) => {
+        appendDebug("Google Maps script failed to load", {
+          message: (error as Error).message,
+        });
         setApiKeyError(
           "Failed to load Google Maps. Please check the API key and network connection."
-        )
-      );
+        );
+      });
 
     // Cleanup the global callback when the component unmounts
     return () => {
@@ -147,7 +182,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({ locations }) => {
         delete window.gm_authFailure;
       }
     };
-  }, []);
+  }, [appendDebug]);
 
   useEffect(() => {
     // Guard against race condition where the script is loaded but window.google is not yet available
@@ -158,25 +193,45 @@ const MapDisplay: React.FC<MapDisplayProps> = ({ locations }) => {
       typeof window.google !== "undefined" &&
       typeof window.google.maps !== "undefined"
     ) {
-      const newMap = new window.google.maps.Map(mapRef.current, {
+      appendDebug("Initializing Google Map instance");
+      const mapOptions: any = {
         center: { lat: 20, lng: 0 },
         zoom: 2,
-        mapId: "WANDERLY_ITINERARY_MAP",
         mapTypeControl: false,
         streetViewControl: false,
         fullscreenControl: false,
-        styles: mapDarkStyle,
-      });
-      setMap(newMap);
-    }
-  }, [isApiLoaded, map]);
+      };
 
-  // Map will always use the dark style; no runtime theme updates required.
+      const mapId = process.env.GOOGLE_MAPS_MAP_ID;
+      if (mapId) {
+        mapOptions.mapId = mapId;
+        appendDebug("Applying custom mapId", { mapId });
+      } else {
+        mapOptions.styles = mapDarkStyle;
+        appendDebug("Applying fallback dark style");
+      }
+
+      const newMap = new window.google.maps.Map(mapRef.current, mapOptions);
+      setMap(newMap);
+      appendDebug("Map instance created");
+    } else if (isApiLoaded && typeof window.google === "undefined") {
+      appendDebug("window.google is undefined after script load");
+    }
+  }, [isApiLoaded, map, appendDebug]);
+
+  // Map uses provided map style configuration only once during initialization.
 
   useEffect(() => {
     if (!map || !isApiLoaded) return;
 
-    markers.forEach((marker) => (marker.map = null));
+    appendDebug("Preparing markers for locations", { count: locations.length });
+    markers.forEach((marker) => {
+      if (typeof marker.setMap === "function") {
+        marker.setMap(null);
+      } else {
+        marker.map = null;
+      }
+    });
     setMarkers([]);
 
     if (locations.length === 0) {
@@ -193,15 +248,27 @@ const MapDisplay: React.FC<MapDisplayProps> = ({ locations }) => {
       geocoder
         .geocode({ address: location.address })
         .then(({ results }: { results: any[] }) => {
+          appendDebug("Geocode success", {
+            address: location.address,
+            resultCount: results?.length ?? 0,
+          });
           if (results && results[0]) {
             return { location, result: results[0] };
           }
           throw new Error(`Geocode failed for address: "${location.address}"`);
         })
+        .catch((error: Error) => {
+          appendDebug("Geocode error", {
+            address: location.address,
+            message: error.message,
+          });
+          throw error;
+        })
     );
 
     Promise.allSettled(geocodePromises).then((results) => {
       const newMarkers: any[] = [];
+      const rejected = results.filter((r) => r.status === "rejected");
       const successfulGeocodes = results
         .filter((r) => r.status === "fulfilled")
         .map(
@@ -214,8 +281,14 @@ const MapDisplay: React.FC<MapDisplayProps> = ({ locations }) => {
             ).value
         );
 
+      appendDebug("Geocode batch completed", {
+        successes: successfulGeocodes.length,
+        failures: rejected.length,
+      });
+
       if (successfulGeocodes.length === 0) {
         console.warn("Could not geocode any of the provided locations.");
+        appendDebug("No geocoding results; map will reset view");
         return;
       }
 
@@ -223,19 +296,25 @@ const MapDisplay: React.FC<MapDisplayProps> = ({ locations }) => {
         const latLng = result.geometry.location;
         bounds.extend(latLng);
 
-        const marker = new window.google.maps.marker.AdvancedMarkerElement({
+        const marker = new window.google.maps.Marker({
           position: latLng,
-          map: map,
+          map,
           title: location.name,
+        });
+
+        appendDebug("Placed marker", {
+          name: location.name,
+          lat: latLng.lat?.() ?? latLng.lat,
+          lng: latLng.lng?.() ?? latLng.lng,
         });
 
         marker.addListener("click", () => {
           infoWindow.setContent(`
-              <div style="font-family: 'Inter', sans-serif; padding: 2px; color: #1f2937;">
-                <h3 style="font-size: 1rem; font-weight: 600; margin: 0 0 4px 0;">${location.name}</h3>
-                <p style="font-size: 0.875rem; color: #4B5563; margin: 0;">${location.address}</p>
-              </div>
-            `);
+            <div style="font-family: 'Inter', sans-serif; padding: 2px; color: #1f2937;">
+              <h3 style="font-size: 1rem; font-weight: 600; margin: 0 0 4px 0;">${location.name}</h3>
+              <p style="font-size: 0.875rem; color: #4B5563; margin: 0;">${location.address}</p>
+            </div>
+          `);
           infoWindow.open(map, marker);
         });
 
@@ -246,14 +325,19 @@ const MapDisplay: React.FC<MapDisplayProps> = ({ locations }) => {
 
       if (successfulGeocodes.length > 1) {
         map.fitBounds(bounds, 50);
+        appendDebug("Adjusted map bounds to fit markers");
       } else {
         map.setCenter(bounds.getCenter());
         map.setZoom(14);
+        appendDebug("Centered map on single marker", {
+          zoom: 14,
+        });
       }
     });
-  }, [map, locations, isApiLoaded]);
+  }, [map, locations, isApiLoaded, appendDebug]);
 
   const hasLocations = locations.length > 0;
+  const isDev = Boolean((import.meta as any).env?.DEV);
 
   if (apiKeyError) {
     return (
@@ -273,6 +357,18 @@ const MapDisplay: React.FC<MapDisplayProps> = ({ locations }) => {
           </div>
         </div>
       )}
+      {!isApiLoaded && hasLocations && (
+        <div className="w-full h-full flex items-center justify-center p-4">
+          <div className="text-center">
+            <h3 className="text-lg font-bold text-gray-100">
+              Google Maps is loading…
+            </h3>
+            <p className="text-sm text-gray-400 mt-2">
+              Check console/debug panel below for status.
+            </p>
+          </div>
+        </div>
+      )}
       {isApiLoaded && !hasLocations && (
         <div className="w-full h-full flex items-center justify-center p-4">
           <div className="text-center">
@@ -286,6 +382,18 @@ const MapDisplay: React.FC<MapDisplayProps> = ({ locations }) => {
         className="w-full h-full"
         style={{ display: hasLocations && isApiLoaded ? "block" : "none" }}
       />
+      {isDev && debugMessages.length > 0 && (
+        <div className="bg-gray-900/80 border-t border-gray-700 p-3 text-xs text-gray-300 overflow-y-auto max-h-40">
+          <div className="font-semibold text-gray-200 mb-2">Map Debug Log</div>
+          <ul className="space-y-1">
+            {debugMessages.map((message, index) => (
+              <li key={index} className="font-mono break-all">
+                {message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 };
