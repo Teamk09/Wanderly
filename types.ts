@@ -8,6 +8,7 @@ export interface UserPreferences {
   preferences: string;
   dislikes: string;
   duration: number;
+  startDate: string;
 }
 
 export interface ItineraryLocation {
@@ -15,11 +16,14 @@ export interface ItineraryLocation {
   description: string;
   time: string;
   address: string;
+  timeSensitive?: boolean;
+  timeSensitiveNote?: string;
 }
 
 export interface ItineraryDay {
   day: number;
   theme: string;
+  calendarDate?: string;
   activities: ItineraryLocation[];
 }
 

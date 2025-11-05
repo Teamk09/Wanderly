@@ -18,6 +18,12 @@ const ItineraryPlanner: React.FC<ItineraryPlannerProps> = ({
     "nightclubs, overly crowded tourist traps"
   );
   const [duration, setDuration] = useState<number>(3);
+  const [startDate, setStartDate] = useState<string>(() => {
+    const today = new Date();
+    const tzOffset = today.getTimezoneOffset();
+    const localDate = new Date(today.getTime() - tzOffset * 60000);
+    return localDate.toISOString().split("T")[0];
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,7 +31,7 @@ const ItineraryPlanner: React.FC<ItineraryPlannerProps> = ({
       alert("Please enter a location.");
       return;
     }
-    onGenerate({ location, preferences, dislikes, duration });
+    onGenerate({ location, preferences, dislikes, duration, startDate });
   };
 
   return (
@@ -46,6 +52,22 @@ const ItineraryPlanner: React.FC<ItineraryPlannerProps> = ({
             onChange={(e) => setLocation(e.target.value)}
             className="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm placeholder-gray-400 text-white focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm"
             placeholder="e.g., Paris, France"
+            required
+          />
+        </div>
+        <div>
+          <label
+            htmlFor="startDate"
+            className="block text-sm font-medium text-gray-300"
+          >
+            First Day of Trip
+          </label>
+          <input
+            type="date"
+            id="startDate"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm text-white focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm"
             required
           />
         </div>

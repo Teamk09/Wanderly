@@ -22,9 +22,16 @@ const ItineraryDisplay: React.FC<ItineraryDisplayProps> = ({
               <span className="bg-amber-900/50 text-amber-300 text-sm font-bold mr-3 px-3 py-1.5 rounded-full">
                 Day {day.day}
               </span>
-              <h3 className="text-xl font-semibold text-gray-200">
-                {day.theme}
-              </h3>
+              <div>
+                <h3 className="text-xl font-semibold text-gray-200">
+                  {day.theme}
+                </h3>
+                {day.calendarDate && (
+                  <p className="text-sm text-gray-400 mt-1">
+                    {day.calendarDate}
+                  </p>
+                )}
+              </div>
             </div>
             <div className="border-l-2 border-amber-800 pl-6 space-y-6">
               {day.activities.map((activity, index) => (
@@ -34,7 +41,20 @@ const ItineraryDisplay: React.FC<ItineraryDisplayProps> = ({
                   <h4 className="font-semibold text-lg text-gray-100 mt-1">
                     {activity.name}
                   </h4>
+                  {activity.timeSensitive && (
+                    <div className="inline-flex items-center space-x-2 bg-amber-900/40 text-amber-300 text-xs font-semibold uppercase tracking-wide px-3 py-1 rounded-full mt-2">
+                      <span role="img" aria-label="Date specific">
+                        🎉
+                      </span>
+                      <span>Date-Specific Event</span>
+                    </div>
+                  )}
                   <p className="text-gray-400 mt-1">{activity.description}</p>
+                  {activity.timeSensitive && activity.timeSensitiveNote && (
+                    <p className="text-amber-200 mt-1 text-sm">
+                      {activity.timeSensitiveNote}
+                    </p>
+                  )}
                   <div className="flex items-center mt-2 text-sm text-gray-400">
                     <span className="mr-1.5">📍</span>
                     <span>{activity.address}</span>
