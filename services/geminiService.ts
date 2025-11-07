@@ -4,48 +4,43 @@ import { Itinerary, UserPreferences, GroundingChunk } from "../types";
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const createPrompt = (preferences: UserPreferences): string => {
-  const startDate = preferences.startDate;
-  const endDate = (() => {
-    const start = new Date(startDate);
-    if (Number.isNaN(start.getTime())) {
-      return startDate;
-    }
-    const inclusiveEnd = new Date(start);
-    inclusiveEnd.setDate(inclusiveEnd.getDate() + preferences.duration - 1);
-    return inclusiveEnd.toISOString().split("T")[0];
-  })();
+  const {
+    startDate,
+    location,
+    preferences: likes,
+    dislikes,
+    timeframe,
+  } = preferences;
 
-  const dayDateLines = (() => {
-    const start = new Date(startDate);
-    if (Number.isNaN(start.getTime())) {
-      return "";
-    }
-    return Array.from({ length: preferences.duration }, (_, index) => {
-      const current = new Date(start);
-      current.setDate(current.getDate() + index);
-      return `- Day ${index + 1}: ${current.toISOString().split("T")[0]}`;
-    }).join("\n    ");
-  })();
+  const start = new Date(startDate);
+  const hasValidStartDate = !Number.isNaN(start.getTime());
+  const canonicalDate = hasValidStartDate
+    ? start.toISOString().split("T")[0]
+    : startDate;
+
+  const trimmedTimeframe = timeframe?.trim();
+  const timeframeLabel = trimmedTimeframe ? trimmedTimeframe : "All day";
+  const normalizedTimeframe = timeframeLabel.toLowerCase();
+  const scheduleInstruction =
+    normalizedTimeframe === "all day"
+      ? "Build a balanced plan that spans morning through evening with realistic transitions between activities."
+      : `Ensure the entire schedule fits within this window: ${timeframeLabel}. Choose opening times and transitions that respect that timeframe.`;
+
+  const datePhrase = canonicalDate || "the specified date";
 
   return `
-    Create a detailed travel itinerary for a ${
-      preferences.duration
-    }-day trip to ${preferences.location}.
+    Create a detailed single-day travel itinerary for ${location} on ${datePhrase}.
 
-    The user has the following preferences:
-    - Likes: ${preferences.preferences}
-    - Dislikes/Blacklist (avoid these): ${preferences.dislikes}
-    - Trip starts on (local arrival date): ${startDate}
+    Traveler preferences:
+    - Likes: ${likes}
+    - Dislikes/Blacklist (avoid these): ${dislikes}
+    - Desired timeframe: ${timeframeLabel}
 
-    Your task is to generate a complete, day-by-day itinerary.
+    Your task is to generate a complete daytrip itinerary.
     - Be creative and suggest a mix of popular spots and hidden gems.
-    - Use the search tool to find interesting, relevant, and time-sensitive events or locations that occur between ${startDate} and ${endDate}.
-    - Make sure each day's plan corresponds to the actual calendar date, starting with Day 1 on ${startDate} and continuing chronologically.
-    - For every day, explicitly search the web for events occurring on that calendar date (examples: "${
-      preferences.location
-    } events ${startDate}", "${preferences.location} festival", "${
-    preferences.location
-  } flea market ${startDate}", venue-specific calendars). Prioritize reputable local event sources such as tourism boards, venue listings, or city blogs. Only include an event if the search confirms it happens on that specific date.
+    - Use the search tool to find interesting, relevant, and time-sensitive events or locations that occur on the single day that the user has specified.
+    - Make sure each day's plan corresponds to the actual calendar date
+    - For every day, explicitly search the web for events occurring on that calendar date (examples: "${preferences.location} events ${startDate}", "${preferences.location} festival", "${preferences.location} flea market ${startDate}", venue-specific calendars). Prioritize reputable local event sources such as tourism boards, venue listings, or city blogs. Only include an event if the search confirms it happens on that specific date.
     - Include seasonal or date-specific activities (festivals, exhibits, events) when available for those dates, and clearly mark them as time-sensitive.
     - When you add a time-sensitive activity, extract a short confirmation note citing the event's date/time (e.g., "Confirmed via Tokyo Cheapo events calendar for ${startDate}").
     - Ensure the itinerary flows logically from one location to the next.
@@ -53,10 +48,6 @@ const createPrompt = (preferences: UserPreferences): string => {
     - Provide a specific address for each location to be used with a mapping service.
 
     The trip calendar for reference:
-    ${
-      dayDateLines ||
-      "(Unable to compute day-by-day dates; fall back to the provided start date.)"
-    }
     
     The final output MUST be a single, valid JSON object and nothing else. Do not add any text before or after the JSON object. Do not wrap it in markdown backticks.
     The JSON object must strictly adhere to the following structure:
@@ -64,7 +55,6 @@ const createPrompt = (preferences: UserPreferences): string => {
       "title": "string (A creative and catchy title for the itinerary. e.g., 'A Culinary and Cultural Journey Through Tokyo')",
       "days": [
         {
-          "day": "integer (The day number, starting from 1)",
           "calendarDate": "string (The ISO date for this day of the trip, e.g., '2025-03-18')",
           "theme": "string (A theme for the day's activities. e.g., 'Historic Landmarks & Modern Art')",
           "activities": [

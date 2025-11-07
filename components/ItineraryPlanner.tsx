@@ -17,7 +17,7 @@ const ItineraryPlanner: React.FC<ItineraryPlannerProps> = ({
   const [dislikes, setDislikes] = useState<string>(
     "nightclubs, overly crowded tourist traps"
   );
-  const [duration, setDuration] = useState<number>(3);
+  const [timeframe, setTimeframe] = useState<string>("All day");
   const [startDate, setStartDate] = useState<string>(() => {
     const today = new Date();
     const tzOffset = today.getTimezoneOffset();
@@ -31,7 +31,7 @@ const ItineraryPlanner: React.FC<ItineraryPlannerProps> = ({
       alert("Please enter a location.");
       return;
     }
-    onGenerate({ location, preferences, dislikes, duration, startDate });
+    onGenerate({ location, preferences, dislikes, startDate, timeframe });
   };
 
   return (
@@ -73,21 +73,28 @@ const ItineraryPlanner: React.FC<ItineraryPlannerProps> = ({
         </div>
         <div>
           <label
-            htmlFor="duration"
+            htmlFor="timeframe"
             className="block text-sm font-medium text-gray-300"
           >
-            Trip Duration ({duration} {duration > 1 ? "days" : "day"})
+            Preferred Timeframe
           </label>
           <input
-            type="range"
-            id="duration"
-            min="1"
-            max="7"
-            value={duration}
-            onChange={(e) => setDuration(parseInt(e.target.value, 10))}
-            className="mt-2 w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-amber-500"
+            type="text"
+            id="timeframe"
+            value={timeframe}
+            onChange={(e) => setTimeframe(e.target.value)}
+            className="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm placeholder-gray-400 text-white focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm"
+            placeholder="e.g., 9:00 AM - 3:00 PM"
           />
+          <p className="mt-1 text-xs text-gray-500">
+            Leave as "All day" to cover morning through evening, or provide a
+            time window like "10:00 AM - 6:00 PM".
+          </p>
         </div>
+        <p className="text-xs text-gray-400">
+          Trips are limited to a single day for now. Need more time? Generate
+          additional itineraries for each day you plan to travel.
+        </p>
         <div>
           <label
             htmlFor="preferences"

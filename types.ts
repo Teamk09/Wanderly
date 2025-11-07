@@ -7,8 +7,8 @@ export interface UserPreferences {
   location: string;
   preferences: string;
   dislikes: string;
-  duration: number;
   startDate: string;
+  timeframe?: string;
 }
 
 export interface ItineraryLocation {
