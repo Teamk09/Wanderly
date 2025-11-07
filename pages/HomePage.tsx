@@ -1,5 +1,8 @@
 import React from "react";
 import bgImage from "../images/00_generic_facebook-001.jpg";
+import fujiImg from "../images/fuji.jpg";
+import templeImg from "../images/newTemple.webp";
+import towerImg from "../images/tower.jpg";
 
 const HomePage: React.FC = () => {
   return (
@@ -35,7 +38,7 @@ const HomePage: React.FC = () => {
               <div className="w-full flex gap-6">
                 <div className="flex-1 h-full overflow-hidden rounded-lg border-2 border-amber-600 relative group">
                   <img
-                    src="/images/fuji.jpg"
+                    src={fujiImg}
                     alt="Explore Mt. Fuji"
                     className="w-full h-full object-cover block"
                   />
@@ -52,7 +55,7 @@ const HomePage: React.FC = () => {
                 </div>
                 <div className="flex-1 h-full overflow-hidden rounded-lg border-2 border-amber-600 relative group">
                   <img
-                    src="/images/newTemple.webp"
+                    src={templeImg}
                     alt="Temple"
                     className="w-full h-full object-cover block"
                   />
@@ -68,7 +71,7 @@ const HomePage: React.FC = () => {
                 </div>
                 <div className="flex-1 h-full overflow-hidden rounded-lg border-2 border-amber-600 relative group">
                   <img
-                    src="/images/tower.jpg"
+                    src={towerImg}
                     alt="Tower"
                     className="w-full h-full object-cover block"
                   />
