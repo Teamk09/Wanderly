@@ -20,7 +20,7 @@ import {
 } from "../services/savedTripsService";
 
 const PlannerPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, initializing } = useAuth();
   const [itinerary, setItinerary] = useState<Itinerary | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,10 +59,10 @@ const PlannerPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!user) {
+    if (!initializing && !user) {
       window.location.hash = "#/login";
     }
-  }, [user]);
+  }, [user, initializing]);
 
   useEffect(() => {
     if (!user) {
@@ -112,8 +112,8 @@ const PlannerPage: React.FC = () => {
       setTripIsSaved(false);
       return;
     }
-    setTripIsSaved(isTripSaved(itinerary, activePreferences));
-  }, [itinerary, activePreferences]);
+    setTripIsSaved(isTripSaved(itinerary, activePreferences, user?.uid));
+  }, [itinerary, activePreferences, user?.uid]);
 
   useEffect(() => {
     if (!saveFeedback) {
@@ -125,8 +125,12 @@ const PlannerPage: React.FC = () => {
     return () => window.clearTimeout(timeout);
   }, [saveFeedback]);
 
-  const handleSaveTrip = useCallback(() => {
+  const handleSaveTrip = useCallback(async () => {
     if (!itinerary || !activePreferences) {
+      return;
+    }
+    if (!user) {
+      window.location.hash = "#/login";
       return;
     }
     if (tripIsSaved) {
@@ -136,13 +140,16 @@ const PlannerPage: React.FC = () => {
       });
       return;
     }
+    setIsSaving(true);
     try {
-      setIsSaving(true);
-      const saved = saveGeneratedTrip({
-        itinerary,
-        preferences: activePreferences,
-        citations,
-      });
+      const saved = await saveGeneratedTrip(
+        {
+          itinerary,
+          preferences: activePreferences,
+          citations,
+        },
+        user.uid
+      );
       setTripIsSaved(true);
       setSaveFeedback({
         type: "success",
@@ -159,12 +166,16 @@ const PlannerPage: React.FC = () => {
     } finally {
       setIsSaving(false);
     }
-  }, [itinerary, activePreferences, citations, tripIsSaved]);
+  }, [itinerary, activePreferences, citations, tripIsSaved, user]);
 
   const getLocationsForMap = (): ItineraryLocation[] => {
     if (!itinerary) return [];
     return itinerary.days.flatMap((day) => day.activities);
   };
+
+  if (initializing) {
+    return null;
+  }
 
   if (!user) {
     return null;

@@ -31,7 +31,9 @@ const Header: React.FC = () => {
                   Plan Trip
                 </a>
                 <button
-                  onClick={logout}
+                  onClick={() => {
+                    void logout();
+                  }}
                   className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-700 rounded-md hover:bg-gray-600"
                 >
                   Logout

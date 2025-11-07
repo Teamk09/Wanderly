@@ -5,6 +5,14 @@ import {
   SuggestedIdea,
   UserPreferences,
 } from "../types";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  setDoc,
+} from "firebase/firestore";
+import { db } from "./firebaseClient";
 
 const STORAGE_KEY = "wanderly:savedTrips";
 const PLANNER_SEED_KEY = "wanderly:plannerSeed";
@@ -50,6 +58,9 @@ const defaultIdeas: SuggestedIdea[] = [
   },
 ];
 
+const getStorageKey = (userId?: string) =>
+  userId ? `${STORAGE_KEY}:${userId}` : `${STORAGE_KEY}:guest`;
+
 const safeParse = <T>(value: string | null, fallback: T): T => {
   if (!value) {
     return fallback;
@@ -62,18 +73,35 @@ const safeParse = <T>(value: string | null, fallback: T): T => {
   }
 };
 
-const readTrips = (): SavedTrip[] => {
+const readTrips = (userId?: string): SavedTrip[] => {
   if (typeof window === "undefined" || !window.localStorage) {
     return [];
   }
-  return safeParse<SavedTrip[]>(window.localStorage.getItem(STORAGE_KEY), []);
+  const cached = window.localStorage.getItem(getStorageKey(userId));
+  if (cached) {
+    return safeParse<SavedTrip[]>(cached, []);
+  }
+
+  if (userId) {
+    const legacy = window.localStorage.getItem(STORAGE_KEY);
+    if (legacy) {
+      const parsed = safeParse<SavedTrip[] | null>(legacy, null);
+      if (parsed) {
+        writeTrips(parsed, userId);
+        window.localStorage.removeItem(STORAGE_KEY);
+        return parsed;
+      }
+    }
+  }
+
+  return [];
 };
 
-const writeTrips = (trips: SavedTrip[]): void => {
+const writeTrips = (trips: SavedTrip[], userId?: string): void => {
   if (typeof window === "undefined" || !window.localStorage) {
     return;
   }
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(trips));
+  window.localStorage.setItem(getStorageKey(userId), JSON.stringify(trips));
 };
 
 const createId = (): string => {
@@ -114,23 +142,84 @@ const buildSummary = (itinerary: Itinerary): string | undefined => {
   return pieces || firstActivity.description;
 };
 
-export const listSavedTrips = (): SavedTrip[] => readTrips();
+const getUserTripsCollection = (userId: string) =>
+  collection(db, "users", userId, "trips");
 
-export const removeSavedTrip = (id: string): void => {
-  const existing = readTrips();
-  const next = existing.filter((trip) => trip.id !== id);
-  writeTrips(next);
+export const listSavedTrips = (userId?: string): SavedTrip[] =>
+  readTrips(userId);
+
+export const syncSavedTrips = async (userId: string): Promise<SavedTrip[]> => {
+  if (!userId) {
+    return listSavedTrips();
+  }
+
+  try {
+    const snapshot = await getDocs(getUserTripsCollection(userId));
+    const remoteTrips: SavedTrip[] = snapshot.docs
+      .map((docSnapshot) => {
+        const data = docSnapshot.data() as Partial<SavedTrip>;
+        if (!data.signature || !data.itinerary) {
+          return null;
+        }
+        return {
+          ...data,
+          id: data.id ?? docSnapshot.id,
+          signature: data.signature,
+          title: data.title ?? "Untitled Trip",
+          location: data.location ?? "",
+          preferences: data.preferences ?? "",
+          dislikes: data.dislikes ?? "",
+          savedAt: data.savedAt ?? new Date().toISOString(),
+          itinerary: data.itinerary as Itinerary,
+          citations:
+            (data.citations as GroundingChunk[] | undefined) ?? undefined,
+        } as SavedTrip;
+      })
+      .filter((trip): trip is SavedTrip => Boolean(trip))
+      .sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+
+    writeTrips(remoteTrips, userId);
+    return remoteTrips;
+  } catch (error) {
+    console.warn("[savedTripsService] Failed to sync trips", error);
+    throw error instanceof Error
+      ? error
+      : new Error("Unable to sync trips from the cloud.");
+  }
 };
 
-export const saveGeneratedTrip = (params: {
-  itinerary: Itinerary;
-  preferences: UserPreferences;
-  citations: GroundingChunk[];
-}): SavedTrip => {
+export const removeSavedTrip = async (
+  id: string,
+  userId?: string
+): Promise<void> => {
+  const existing = readTrips(userId);
+  const next = existing.filter((trip) => trip.id !== id);
+  if (userId) {
+    try {
+      await deleteDoc(doc(db, "users", userId, "trips", id));
+    } catch (error) {
+      console.warn("[savedTripsService] Failed to remove remote trip", error);
+      throw error instanceof Error
+        ? error
+        : new Error("Unable to remove trip from the cloud.");
+    }
+  }
+
+  writeTrips(next, userId);
+};
+
+export const saveGeneratedTrip = async (
+  params: {
+    itinerary: Itinerary;
+    preferences: UserPreferences;
+    citations: GroundingChunk[];
+  },
+  userId?: string
+): Promise<SavedTrip> => {
   const { itinerary, preferences, citations } = params;
   const signature = buildSignature(itinerary, preferences);
   const savedAt = new Date().toISOString();
-  const existing = readTrips();
+  const existing = readTrips(userId);
   const foundIndex = existing.findIndex((trip) => trip.signature === signature);
 
   const nextTrip: SavedTrip = {
@@ -148,22 +237,35 @@ export const saveGeneratedTrip = (params: {
     citations: citations.length > 0 ? citations : undefined,
   };
 
+  const updatedTrips = [...existing];
   if (foundIndex >= 0) {
-    existing.splice(foundIndex, 1, nextTrip);
-    writeTrips(existing);
+    updatedTrips.splice(foundIndex, 1, nextTrip);
   } else {
-    writeTrips([nextTrip, ...existing]);
+    updatedTrips.unshift(nextTrip);
   }
 
+  if (userId) {
+    try {
+      await setDoc(doc(db, "users", userId, "trips", nextTrip.id), nextTrip);
+    } catch (error) {
+      console.warn("[savedTripsService] Failed to save trip remotely", error);
+      throw error instanceof Error
+        ? error
+        : new Error("Unable to save trip to the cloud.");
+    }
+  }
+
+  writeTrips(updatedTrips, userId);
   return nextTrip;
 };
 
 export const isTripSaved = (
   itinerary: Itinerary,
-  preferences: UserPreferences
+  preferences: UserPreferences,
+  userId?: string
 ): boolean => {
   const signature = buildSignature(itinerary, preferences);
-  return readTrips().some((trip) => trip.signature === signature);
+  return readTrips(userId).some((trip) => trip.signature === signature);
 };
 
 export const getSuggestedIdeas = (): SuggestedIdea[] => defaultIdeas;

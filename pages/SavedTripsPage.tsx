@@ -8,32 +8,62 @@ import {
   removeSavedTrip,
   setPlannerSeed,
   setSelectedTrip,
+  syncSavedTrips,
 } from "../services/savedTripsService";
 
 const SavedTripsPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, initializing } = useAuth();
   const [savedTrips, setSavedTrips] = useState<SavedTrip[]>([]);
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{
     type: "info" | "success" | "error";
     message: string;
   } | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
   const suggestedIdeas = useMemo<SuggestedIdea[]>(
     () => getSuggestedIdeas(),
     []
   );
 
   useEffect(() => {
-    if (!user) {
+    if (!initializing && !user) {
       window.location.hash = "#/login";
     }
-  }, [user]);
+  }, [user, initializing]);
 
   useEffect(() => {
     if (!user) {
+      setSavedTrips([]);
       return;
     }
-    setSavedTrips(listSavedTrips());
+    setSavedTrips(listSavedTrips(user.uid));
+    let isMounted = true;
+    setIsSyncing(true);
+    (async () => {
+      try {
+        const freshTrips = await syncSavedTrips(user.uid);
+        if (isMounted) {
+          setSavedTrips(freshTrips);
+        }
+      } catch (error) {
+        console.warn("[SavedTripsPage] Failed to refresh trips", error);
+        if (isMounted) {
+          setFeedback({
+            type: "error",
+            message:
+              "We could not refresh your saved trips. Showing what we have cached.",
+          });
+        }
+      } finally {
+        if (isMounted) {
+          setIsSyncing(false);
+        }
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
   }, [user]);
 
   useEffect(() => {
@@ -41,7 +71,7 @@ const SavedTripsPage: React.FC = () => {
       return;
     }
     const handleStorage = () => {
-      setSavedTrips(listSavedTrips());
+      setSavedTrips(listSavedTrips(user.uid));
     };
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);
@@ -80,15 +110,26 @@ const SavedTripsPage: React.FC = () => {
     setFeedback({ type: "info", message: `Viewing "${trip.title}".` });
   }, []);
 
-  const handleRemoveTrip = useCallback((trip: SavedTrip) => {
-    removeSavedTrip(trip.id);
-    const updated = listSavedTrips();
-    setSavedTrips(updated);
-    setFeedback({
-      type: "info",
-      message: `Removed "${trip.title}" from saved trips.`,
-    });
-  }, []);
+  const handleRemoveTrip = useCallback(
+    async (trip: SavedTrip) => {
+      try {
+        await removeSavedTrip(trip.id, user?.uid);
+        const updated = listSavedTrips(user?.uid);
+        setSavedTrips(updated);
+        setFeedback({
+          type: "info",
+          message: `Removed "${trip.title}" from saved trips.`,
+        });
+      } catch (error) {
+        console.error("[SavedTripsPage] Failed to remove trip", error);
+        setFeedback({
+          type: "error",
+          message: `We couldn't remove "${trip.title}". Please try again.`,
+        });
+      }
+    },
+    [user?.uid]
+  );
 
   const handleResumeTrip = useCallback((trip: SavedTrip) => {
     setSelectedTrip(trip);
@@ -106,6 +147,10 @@ const SavedTripsPage: React.FC = () => {
     });
     window.location.hash = "#/planner";
   }, []);
+
+  if (initializing) {
+    return null;
+  }
 
   if (!user) {
     return null;
@@ -139,7 +184,7 @@ const SavedTripsPage: React.FC = () => {
       <section>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-gray-100">
-            Recently Saved
+            Recently Saved {isSyncing ? "(Syncing...)" : ""}
           </h2>
           <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
             Scroll →
