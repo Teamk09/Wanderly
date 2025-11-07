@@ -117,6 +117,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({ locations }) => {
   const [isApiLoaded, setIsApiLoaded] = useState(false);
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
   const [debugMessages, setDebugMessages] = useState<string[]>([]);
+  const [googleReadyTick, setGoogleReadyTick] = useState(0);
 
   const appendDebug = useCallback((message: string, extra?: unknown) => {
     const timestamp = new Date().toISOString();
@@ -157,9 +158,17 @@ const MapDisplay: React.FC<MapDisplayProps> = ({ locations }) => {
 
     const scriptSrc = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
 
-    const existingScript = document.querySelector(`script[src="${scriptSrc}"]`);
+    const existingScript = document.querySelector<HTMLScriptElement>(
+      `script[src="${scriptSrc}"]`
+    );
     if (existingScript) {
       appendDebug("Using existing Google Maps script tag");
+      appendDebug("Existing script attributes", {
+        async: existingScript.async,
+        defer: existingScript.defer,
+        type: existingScript.type || "text/javascript",
+        readyState: (existingScript as any).readyState || "unknown",
+      });
     }
 
     loadScript(scriptSrc)
@@ -183,6 +192,67 @@ const MapDisplay: React.FC<MapDisplayProps> = ({ locations }) => {
       }
     };
   }, [appendDebug]);
+
+  useEffect(() => {
+    if (!isApiLoaded) {
+      return;
+    }
+
+    const script = document.querySelector<HTMLScriptElement>(
+      'script[src^="https://maps.googleapis.com/maps/api/js"]'
+    );
+    if (script) {
+      appendDebug("Google Maps script tag status", {
+        async: script.async,
+        defer: script.defer,
+        type: script.type || "text/javascript",
+        readyState: (script as any).readyState || "unknown",
+        dataset: { ...script.dataset },
+      });
+    } else {
+      appendDebug("Google Maps script tag not found after loadScript call");
+    }
+
+    const hasGoogle =
+      typeof window.google !== "undefined" &&
+      typeof window.google.maps !== "undefined";
+
+    if (hasGoogle) {
+      appendDebug("window.google available; ready to initialize map");
+      setGoogleReadyTick((tick) => tick + 1);
+      return;
+    }
+
+    appendDebug("window.google still undefined; starting retry interval");
+
+    let attempts = 0;
+    const intervalId = window.setInterval(() => {
+      attempts += 1;
+      const ready =
+        typeof window.google !== "undefined" &&
+        typeof window.google.maps !== "undefined";
+
+      if (ready) {
+        appendDebug("window.google detected after retry", { attempts });
+        setGoogleReadyTick((tick) => tick + 1);
+        window.clearInterval(intervalId);
+        return;
+      }
+
+      if (attempts === 1 || attempts === 5 || attempts === 10) {
+        appendDebug("window.google still undefined on retry", { attempts });
+      }
+
+      if (attempts >= 20) {
+        appendDebug("window.google not available after max retries", {
+          attempts,
+        });
+        window.clearInterval(intervalId);
+      }
+    }, 300);
+
+    return () => window.clearInterval(intervalId);
+  }, [isApiLoaded, appendDebug]);
 
   useEffect(() => {
     // Guard against race condition where the script is loaded but window.google is not yet available
@@ -217,7 +287,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({ locations }) => {
     } else if (isApiLoaded && typeof window.google === "undefined") {
       appendDebug("window.google is undefined after script load");
     }
-  }, [isApiLoaded, map, appendDebug]);
+  }, [isApiLoaded, map, appendDebug, googleReadyTick]);
 
   // Map uses provided map style configuration only once during initialization.
 
