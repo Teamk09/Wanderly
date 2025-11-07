@@ -18,6 +18,18 @@ const Header: React.FC = () => {
                 <span className="text-sm font-medium text-gray-300 hidden sm:block">
                   Welcome, {user.name}!
                 </span>
+                <a
+                  href="#/saved"
+                  className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-700 rounded-md hover:bg-gray-600"
+                >
+                  Saved Trips
+                </a>
+                <a
+                  href="#/planner"
+                  className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-700 rounded-md hover:bg-gray-600"
+                >
+                  Plan Trip
+                </a>
                 <button
                   onClick={logout}
                   className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-700 rounded-md hover:bg-gray-600"

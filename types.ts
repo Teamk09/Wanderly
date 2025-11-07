@@ -42,3 +42,28 @@ export interface GroundingChunk {
     title?: string;
   };
 }
+
+export interface SavedTrip {
+  id: string;
+  signature: string;
+  title: string;
+  location: string;
+  startDate?: string;
+  timeframe?: string;
+  preferences: string;
+  dislikes: string;
+  summary?: string;
+  savedAt: string;
+  itinerary: Itinerary;
+  citations?: GroundingChunk[];
+}
+
+export interface SuggestedIdea {
+  id: string;
+  title: string;
+  description: string;
+  location?: string;
+  timeframe?: string;
+  preferences?: string;
+  dislikes?: string;
+}

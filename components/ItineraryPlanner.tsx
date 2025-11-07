@@ -1,14 +1,18 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { UserPreferences } from "../types";
 
 interface ItineraryPlannerProps {
   onGenerate: (preferences: UserPreferences) => void;
   isLoading: boolean;
+  seed?: Partial<UserPreferences> | null;
+  onSeedConsumed?: () => void;
 }
 
 const ItineraryPlanner: React.FC<ItineraryPlannerProps> = ({
   onGenerate,
   isLoading,
+  seed,
+  onSeedConsumed,
 }) => {
   const [location, setLocation] = useState<string>("Tokyo, Japan");
   const [preferences, setPreferences] = useState<string>(
@@ -24,6 +28,40 @@ const ItineraryPlanner: React.FC<ItineraryPlannerProps> = ({
     const localDate = new Date(today.getTime() - tzOffset * 60000);
     return localDate.toISOString().split("T")[0];
   });
+  const lastSeedRef = useRef<string>("");
+
+  useEffect(() => {
+    if (!seed) {
+      return;
+    }
+    const serialized = JSON.stringify(seed);
+    if (serialized === lastSeedRef.current) {
+      return;
+    }
+    lastSeedRef.current = serialized;
+    if (typeof seed.location === "string" && seed.location.trim().length > 0) {
+      setLocation(seed.location);
+    }
+    if (typeof seed.preferences === "string") {
+      setPreferences(seed.preferences);
+    }
+    if (typeof seed.dislikes === "string") {
+      setDislikes(seed.dislikes);
+    }
+    if (
+      typeof seed.startDate === "string" &&
+      seed.startDate.trim().length > 0
+    ) {
+      setStartDate(seed.startDate);
+    }
+    if (
+      typeof seed.timeframe === "string" &&
+      seed.timeframe.trim().length > 0
+    ) {
+      setTimeframe(seed.timeframe);
+    }
+    onSeedConsumed?.();
+  }, [seed, onSeedConsumed]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
