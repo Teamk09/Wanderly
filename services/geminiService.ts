@@ -1,7 +1,32 @@
-import { GoogleGenAI } from "@google/genai";
 import { Itinerary, UserPreferences, GroundingChunk } from "../types";
+interface GeminiContentPart {
+  text?: string;
+}
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+interface GeminiContent {
+  parts?: GeminiContentPart[];
+}
+
+interface GeminiGroundingChunk {
+  web?: { uri?: string; title?: string };
+  maps?: { uri?: string; title?: string };
+  [key: string]: unknown;
+}
+
+interface GeminiCandidate {
+  content?: GeminiContent;
+  groundingMetadata?: {
+    groundingChunks?: GeminiGroundingChunk[];
+  };
+}
+
+interface GeminiResponse {
+  candidates?: GeminiCandidate[];
+}
+
+const GEMINI_PROXY_URL = import.meta.env.VITE_GEMINI_PROXY_URL as
+  | string
+  | undefined;
 
 const createPrompt = (preferences: UserPreferences): string => {
   const {
@@ -44,6 +69,7 @@ const createPrompt = (preferences: UserPreferences): string => {
     - Include seasonal or date-specific activities (festivals, exhibits, events) when available for those dates, and clearly mark them as time-sensitive.
     - When you add a time-sensitive activity, extract a short confirmation note citing the event's date/time (e.g., "Confirmed via Tokyo Cheapo events calendar for ${startDate}").
     - Ensure the itinerary flows logically from one location to the next.
+    - ${scheduleInstruction}
     - Include a "calendarDate" property on each day (ISO format YYYY-MM-DD) that matches the real-world date for that day of the trip.
     - Provide a specific address for each location to be used with a mapping service.
 
@@ -76,29 +102,46 @@ const createPrompt = (preferences: UserPreferences): string => {
 export const generateItinerary = async (
   preferences: UserPreferences
 ): Promise<{ itinerary: Itinerary; citations: GroundingChunk[] }> => {
+  if (!GEMINI_PROXY_URL) {
+    throw new Error("Gemini proxy URL is not configured.");
+  }
+
   let rawText = "";
   try {
     const prompt = createPrompt(preferences);
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-      config: {
-        tools: [{ googleSearch: {} }],
+    const response = await fetch(GEMINI_PROXY_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
       },
+      body: JSON.stringify({ prompt }),
     });
 
-    rawText = response.text.trim();
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error("Gemini proxy error:", errorBody);
+      throw new Error("Gemini service returned an error.");
+    }
+
+    const data: GeminiResponse = await response.json();
+    rawText = extractModelText(data).trim();
     const jsonMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
     const jsonText = jsonMatch ? jsonMatch[1] : rawText;
 
     const itinerary: Itinerary = JSON.parse(jsonText);
 
-    const citations =
-      response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const citations = (data.candidates?.[0]?.groundingMetadata
+      ?.groundingChunks ?? []) as GeminiGroundingChunk[];
 
-    const validCitations = citations.filter(
-      (c) => (c.web && c.web.uri) || (c.maps && c.maps.uri)
-    );
+    const validCitations: GroundingChunk[] = citations
+      .filter(
+        (chunk) =>
+          (chunk.web && chunk.web.uri) || (chunk.maps && chunk.maps.uri)
+      )
+      .map((chunk) => ({
+        web: chunk.web,
+        maps: chunk.maps,
+      }));
 
     return { itinerary, citations: validCitations };
   } catch (error) {
@@ -110,3 +153,15 @@ export const generateItinerary = async (
     throw new Error("Could not connect to the itinerary generation service.");
   }
 };
+
+function extractModelText(data: GeminiResponse): string {
+  const candidate = data.candidates?.[0];
+  if (!candidate?.content?.parts?.length) {
+    return "";
+  }
+
+  return candidate.content.parts
+    .map((part) => part.text ?? "")
+    .join("\n")
+    .trim();
+}
