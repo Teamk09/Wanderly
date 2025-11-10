@@ -145,6 +145,32 @@ const buildSummary = (itinerary: Itinerary): string | undefined => {
 const getUserTripsCollection = (userId: string) =>
   collection(db, "users", userId, "trips");
 
+const removeUndefinedDeep = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => removeUndefinedDeep(item))
+      .filter((item) => item !== undefined);
+  }
+
+  if (value && typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>).reduce(
+      (acc, [key, entryValue]) => {
+        if (entryValue === undefined) {
+          return acc;
+        }
+        const cleaned = removeUndefinedDeep(entryValue);
+        if (cleaned !== undefined) {
+          acc[key] = cleaned;
+        }
+        return acc;
+      },
+      {} as Record<string, unknown>
+    );
+  }
+
+  return value === undefined ? undefined : value;
+};
+
 export const listSavedTrips = (userId?: string): SavedTrip[] =>
   readTrips(userId);
 
@@ -221,6 +247,7 @@ export const saveGeneratedTrip = async (
   const savedAt = new Date().toISOString();
   const existing = readTrips(userId);
   const foundIndex = existing.findIndex((trip) => trip.signature === signature);
+  const summary = buildSummary(itinerary);
 
   const nextTrip: SavedTrip = {
     id: foundIndex >= 0 ? existing[foundIndex].id : createId(),
@@ -228,25 +255,30 @@ export const saveGeneratedTrip = async (
     title: itinerary.title,
     location: preferences.location,
     startDate: preferences.startDate,
-    timeframe: preferences.timeframe,
     preferences: preferences.preferences,
     dislikes: preferences.dislikes,
-    summary: buildSummary(itinerary),
     savedAt,
     itinerary,
-    citations: citations.length > 0 ? citations : undefined,
+    ...(preferences.timeframe ? { timeframe: preferences.timeframe } : {}),
+    ...(summary ? { summary } : {}),
+    ...(citations.length > 0 ? { citations } : {}),
   };
+
+  const sanitizedTrip = removeUndefinedDeep(nextTrip) as SavedTrip;
 
   const updatedTrips = [...existing];
   if (foundIndex >= 0) {
-    updatedTrips.splice(foundIndex, 1, nextTrip);
+    updatedTrips.splice(foundIndex, 1, sanitizedTrip);
   } else {
-    updatedTrips.unshift(nextTrip);
+    updatedTrips.unshift(sanitizedTrip);
   }
 
   if (userId) {
     try {
-      await setDoc(doc(db, "users", userId, "trips", nextTrip.id), nextTrip);
+      await setDoc(
+        doc(db, "users", userId, "trips", sanitizedTrip.id),
+        sanitizedTrip
+      );
     } catch (error) {
       console.warn("[savedTripsService] Failed to save trip remotely", error);
       throw error instanceof Error
@@ -256,7 +288,7 @@ export const saveGeneratedTrip = async (
   }
 
   writeTrips(updatedTrips, userId);
-  return nextTrip;
+  return sanitizedTrip;
 };
 
 export const isTripSaved = (
