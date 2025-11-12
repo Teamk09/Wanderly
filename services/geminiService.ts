@@ -1,4 +1,5 @@
 import { Itinerary, UserPreferences, GroundingChunk } from "../types";
+import { auth } from "./firebaseClient";
 interface GeminiContentPart {
   text?: string;
 }
@@ -109,13 +110,27 @@ export const generateItinerary = async (
   let rawText = "";
   try {
     const prompt = createPrompt(preferences);
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      throw new Error(
+        "You need to be signed in before generating an itinerary."
+      );
+    }
+
+    const idToken = await currentUser.getIdToken();
+
     const response = await fetch(GEMINI_PROXY_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
       },
       body: JSON.stringify({ prompt }),
     });
+
+    if (response.status === 401) {
+      throw new Error("Session expired. Please sign in again.");
+    }
 
     if (!response.ok) {
       const errorBody = await response.text();

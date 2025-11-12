@@ -1,12 +1,16 @@
 export interface Env {
 	GEMINI_API_KEY: string;
+	FIREBASE_WEB_API_KEY: string;
 }
 
 interface ProxyRequestBody {
 	prompt?: string;
 }
 
-const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+const RETRYABLE_STATUS = new Set([429, 503]);
+const MAX_RETRIES = 2;
 
 const allowedOrigins = new Set([
 	'https://wanderly.web.app',
@@ -36,6 +40,21 @@ export default {
 			return corsResponse(origin, 403, 'Origin not allowed');
 		}
 
+		const authHeader = request.headers.get('Authorization') ?? '';
+		if (!authHeader.startsWith('Bearer ')) {
+			return corsResponse(origin, 401, 'Missing bearer token');
+		}
+
+		const idToken = authHeader.slice('Bearer '.length).trim();
+		if (!idToken) {
+			return corsResponse(origin, 401, 'Missing bearer token');
+		}
+
+		const user = await verifyFirebaseIdToken(idToken, env.FIREBASE_WEB_API_KEY);
+		if (!user) {
+			return corsResponse(origin, 401, 'Invalid authentication token');
+		}
+
 		let body: ProxyRequestBody;
 		try {
 			body = (await request.json()) as ProxyRequestBody;
@@ -59,19 +78,35 @@ export default {
 			tools: [{ googleSearch: {} }],
 		};
 
-		let geminiResponse: Response;
-		try {
-			geminiResponse = await fetch(GEMINI_ENDPOINT, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					'x-goog-api-key': env.GEMINI_API_KEY,
-				},
-				body: JSON.stringify(geminiPayload),
-			});
-		} catch (error) {
-			console.error('Gemini request failed', error);
-			return corsResponse(origin, 502, 'Upstream service error');
+		let geminiResponse: Response | null = null;
+		for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+			try {
+				geminiResponse = await fetch(GEMINI_ENDPOINT, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						'x-goog-api-key': env.GEMINI_API_KEY,
+					},
+					body: JSON.stringify(geminiPayload),
+				});
+			} catch (error) {
+				console.error('Gemini request failed', error);
+				if (attempt === MAX_RETRIES) {
+					return corsResponse(origin, 502, 'Upstream service error');
+				}
+				await waitForBackoff(attempt);
+				continue;
+			}
+
+			if (!RETRYABLE_STATUS.has(geminiResponse.status) || attempt === MAX_RETRIES) {
+				break;
+			}
+			await waitForBackoff(attempt);
+			geminiResponse = null;
+		}
+
+		if (!geminiResponse) {
+			return corsResponse(origin, 502, 'Gemini service unavailable');
 		}
 
 		const resultText = await geminiResponse.text();
@@ -84,6 +119,33 @@ export default {
 		});
 	},
 };
+
+async function verifyFirebaseIdToken(idToken: string, firebaseWebApiKey: string): Promise<{ uid: string } | null> {
+	try {
+		const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${firebaseWebApiKey}`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({ idToken }),
+		});
+		if (!response.ok) {
+			console.warn('Failed to verify Firebase ID token', await response.text());
+			return null;
+		}
+		const data = (await response.json()) as {
+			users?: Array<{ localId?: string }>;
+		};
+		const firebaseUser = data.users?.[0];
+		if (!firebaseUser?.localId) {
+			return null;
+		}
+		return { uid: firebaseUser.localId };
+	} catch (error) {
+		console.error('Error verifying Firebase ID token', error);
+		return null;
+	}
+}
 
 function corsHeaders(origin: string, allowedHeaders?: string | null): Record<string, string> {
 	return {
@@ -110,4 +172,10 @@ function corsResponse(origin: string, status: number, body?: string): Response {
 		status,
 		headers: corsHeaders(origin),
 	});
+}
+
+function waitForBackoff(attempt: number): Promise<void> {
+	const baseDelayMs = 500;
+	const delay = baseDelayMs * 2 ** attempt;
+	return new Promise((resolve) => setTimeout(resolve, delay));
 }
