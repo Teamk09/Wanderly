@@ -6,6 +6,10 @@ interface ItineraryPlannerProps {
   isLoading: boolean;
   seed?: Partial<UserPreferences> | null;
   onSeedConsumed?: () => void;
+  profileDefaults?: {
+    preferences?: string;
+    dislikes?: string;
+  };
 }
 
 const ItineraryPlanner: React.FC<ItineraryPlannerProps> = ({
@@ -13,14 +17,15 @@ const ItineraryPlanner: React.FC<ItineraryPlannerProps> = ({
   isLoading,
   seed,
   onSeedConsumed,
+  profileDefaults,
 }) => {
-  const [location, setLocation] = useState<string>("Tokyo, Japan");
-  const [preferences, setPreferences] = useState<string>(
-    "ramen, anime culture, shrines, city pop music"
-  );
-  const [dislikes, setDislikes] = useState<string>(
-    "nightclubs, overly crowded tourist traps"
-  );
+  const DEFAULT_LOCATION = "Tokyo, Japan";
+  const DEFAULT_PREFERENCES = "ramen, anime culture, shrines, city pop music";
+  const DEFAULT_DISLIKES = "nightclubs, overly crowded tourist traps";
+
+  const [location, setLocation] = useState<string>(DEFAULT_LOCATION);
+  const [preferences, setPreferences] = useState<string>(DEFAULT_PREFERENCES);
+  const [dislikes, setDislikes] = useState<string>(DEFAULT_DISLIKES);
   const [timeframe, setTimeframe] = useState<string>("All day");
   const [startDate, setStartDate] = useState<string>(() => {
     const today = new Date();
@@ -29,6 +34,8 @@ const ItineraryPlanner: React.FC<ItineraryPlannerProps> = ({
     return localDate.toISOString().split("T")[0];
   });
   const lastSeedRef = useRef<string>("");
+  const preferencesTouchedRef = useRef<boolean>(false);
+  const dislikesTouchedRef = useRef<boolean>(false);
 
   useEffect(() => {
     if (!seed) {
@@ -44,9 +51,11 @@ const ItineraryPlanner: React.FC<ItineraryPlannerProps> = ({
     }
     if (typeof seed.preferences === "string") {
       setPreferences(seed.preferences);
+      preferencesTouchedRef.current = true;
     }
     if (typeof seed.dislikes === "string") {
       setDislikes(seed.dislikes);
+      dislikesTouchedRef.current = true;
     }
     if (
       typeof seed.startDate === "string" &&
@@ -62,6 +71,18 @@ const ItineraryPlanner: React.FC<ItineraryPlannerProps> = ({
     }
     onSeedConsumed?.();
   }, [seed, onSeedConsumed]);
+
+  useEffect(() => {
+    if (!profileDefaults) {
+      return;
+    }
+    if (profileDefaults.preferences && !preferencesTouchedRef.current) {
+      setPreferences(profileDefaults.preferences);
+    }
+    if (profileDefaults.dislikes && !dislikesTouchedRef.current) {
+      setDislikes(profileDefaults.dislikes);
+    }
+  }, [profileDefaults]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,7 +164,10 @@ const ItineraryPlanner: React.FC<ItineraryPlannerProps> = ({
           <textarea
             id="preferences"
             value={preferences}
-            onChange={(e) => setPreferences(e.target.value)}
+            onChange={(e) => {
+              preferencesTouchedRef.current = true;
+              setPreferences(e.target.value);
+            }}
             rows={3}
             className="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm placeholder-gray-400 text-white focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm"
             placeholder="e.g., art museums, hiking, street food"
@@ -159,7 +183,10 @@ const ItineraryPlanner: React.FC<ItineraryPlannerProps> = ({
           <textarea
             id="dislikes"
             value={dislikes}
-            onChange={(e) => setDislikes(e.target.value)}
+            onChange={(e) => {
+              dislikesTouchedRef.current = true;
+              setDislikes(e.target.value);
+            }}
             rows={2}
             className="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm placeholder-gray-400 text-white focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm"
             placeholder="e.g., crowded places, shopping malls"

@@ -3,8 +3,10 @@ import Header from "./components/Header";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import PlannerPage from "./pages/PlannerPage";
+import ProfilePage from "./pages/ProfilePage";
 import SavedTripsPage from "./pages/SavedTripsPage";
 import { AuthProvider } from "./context/AuthContext";
+import { ProfileProvider } from "./context/ProfileContext";
 
 const App: React.FC = () => {
   const [route, setRoute] = useState(window.location.hash);
@@ -33,6 +35,8 @@ const App: React.FC = () => {
         return <PlannerPage />;
       case "#/saved":
         return <SavedTripsPage />;
+      case "#/profile":
+        return <ProfilePage />;
       case "#/":
       case "":
       default:
@@ -42,10 +46,12 @@ const App: React.FC = () => {
 
   return (
     <AuthProvider>
-      <div className="min-h-screen flex flex-col bg-gray-900 text-gray-200">
-        <Header />
-        <main className="flex-grow">{renderPage()}</main>
-      </div>
+      <ProfileProvider>
+        <div className="min-h-screen flex flex-col bg-gray-900 text-gray-200">
+          <Header />
+          <main className="flex-grow">{renderPage()}</main>
+        </div>
+      </ProfileProvider>
     </AuthProvider>
   );
 };

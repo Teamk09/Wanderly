@@ -11,6 +11,7 @@ export interface UserPreferences {
   dislikes: string;
   startDate: string;
   timeframe?: string;
+  visitedPlaces?: string;
 }
 
 export interface ItineraryLocation {
@@ -68,4 +69,11 @@ export interface SuggestedIdea {
   timeframe?: string;
   preferences?: string;
   dislikes?: string;
+}
+
+export interface UserProfile {
+  likes: string;
+  dislikes: string;
+  visitedPlaces: string;
+  updatedAt: string;
 }

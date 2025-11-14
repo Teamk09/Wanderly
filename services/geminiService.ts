@@ -35,6 +35,7 @@ const createPrompt = (preferences: UserPreferences): string => {
     location,
     preferences: likes,
     dislikes,
+    visitedPlaces,
     timeframe,
   } = preferences;
 
@@ -53,6 +54,10 @@ const createPrompt = (preferences: UserPreferences): string => {
       : `Ensure the entire schedule fits within this window: ${timeframeLabel}. Choose opening times and transitions that respect that timeframe.`;
 
   const datePhrase = canonicalDate || "the specified date";
+  const visited = visitedPlaces?.trim();
+  const visitedInstruction = visited
+    ? `Avoid recommending any of these locations the traveler has already experienced: ${visited}.`
+    : "";
 
   return `
     Create a detailed single-day travel itinerary for ${location} on ${datePhrase}.
@@ -60,17 +65,25 @@ const createPrompt = (preferences: UserPreferences): string => {
     Traveler preferences:
     - Likes: ${likes}
     - Dislikes/Blacklist (avoid these): ${dislikes}
+    - Places already visited (do not include these): ${
+      visited || "None provided"
+    }
     - Desired timeframe: ${timeframeLabel}
 
     Your task is to generate a complete daytrip itinerary.
     - Be creative and suggest a mix of popular spots and hidden gems.
     - Use the search tool to find interesting, relevant, and time-sensitive events or locations that occur on the single day that the user has specified.
     - Make sure each day's plan corresponds to the actual calendar date
-    - For every day, explicitly search the web for events occurring on that calendar date (examples: "${preferences.location} events ${startDate}", "${preferences.location} festival", "${preferences.location} flea market ${startDate}", venue-specific calendars). Prioritize reputable local event sources such as tourism boards, venue listings, or city blogs. Only include an event if the search confirms it happens on that specific date.
+    - For every day, explicitly search the web for events occurring on that calendar date (examples: "${
+      preferences.location
+    } events ${startDate}", "${preferences.location} festival", "${
+    preferences.location
+  } flea market ${startDate}", venue-specific calendars). Prioritize reputable local event sources such as tourism boards, venue listings, or city blogs. Only include an event if the search confirms it happens on that specific date.
     - Include seasonal or date-specific activities (festivals, exhibits, events) when available for those dates, and clearly mark them as time-sensitive.
     - When you add a time-sensitive activity, extract a short confirmation note citing the event's date/time (e.g., "Confirmed via Tokyo Cheapo events calendar for ${startDate}").
     - Ensure the itinerary flows logically from one location to the next.
     - ${scheduleInstruction}
+    ${visitedInstruction ? `- ${visitedInstruction}` : ""}
     - Include a "calendarDate" property on each day (ISO format YYYY-MM-DD) that matches the real-world date for that day of the trip.
     - Provide a specific address for each location to be used with a mapping service.
 
