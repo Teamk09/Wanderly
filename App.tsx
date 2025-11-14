@@ -4,6 +4,7 @@ import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import PlannerPage from "./pages/PlannerPage";
 import SavedTripsPage from "./pages/SavedTripsPage";
+import AboutPage from "./pages/AboutPage";
 import { AuthProvider } from "./context/AuthContext";
 
 const App: React.FC = () => {
@@ -33,6 +34,8 @@ const App: React.FC = () => {
         return <PlannerPage />;
       case "#/saved":
         return <SavedTripsPage />;
+      case "#/about":
+        return <AboutPage />;
       case "#/":
       case "":
       default:

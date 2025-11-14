@@ -7,7 +7,6 @@ import towerImg from "../images/tower.jpg";
 const HomePage: React.FC = () => {
   return (
     <>
-      {/* main header */}
       <div
         className="bg-cover bg-center min-h-screen"
         style={{
@@ -90,6 +89,25 @@ const HomePage: React.FC = () => {
           </div>
         </div>
       </div>
+      <footer className="bg-gray-950 border-t border-gray-800">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-16">
+          <div className="max-w-3xl mx-auto text-center space-y-6">
+            <h2 className="text-3xl font-bold text-white">
+              Curious what Wanderly is about?
+            </h2>
+            <p className="text-base text-gray-300 leading-relaxed">
+              Learn more about our mission, the story behind Wanderly, and meet
+              the people building it!
+            </p>
+            <a
+              href="#/about"
+              className="inline-flex items-center justify-center px-6 py-3 rounded-full bg-amber-600 text-white font-semibold hover:bg-amber-700 transition-colors"
+            >
+              Visit the About Page
+            </a>
+          </div>
+        </div>
+      </footer>
     </>
   );
 };
