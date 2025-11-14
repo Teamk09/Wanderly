@@ -5,6 +5,7 @@ import LoginPage from "./pages/LoginPage";
 import PlannerPage from "./pages/PlannerPage";
 import ProfilePage from "./pages/ProfilePage";
 import SavedTripsPage from "./pages/SavedTripsPage";
+import AboutPage from "./pages/AboutPage";
 import { AuthProvider } from "./context/AuthContext";
 import { ProfileProvider } from "./context/ProfileContext";
 
@@ -37,6 +38,8 @@ const App: React.FC = () => {
         return <SavedTripsPage />;
       case "#/profile":
         return <ProfilePage />;
+      case "#/about":
+        return <AboutPage />;
       case "#/":
       case "":
       default:
