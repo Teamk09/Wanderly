@@ -12,6 +12,7 @@ import {
 } from "../types";
 import { generateItinerary } from "../services/geminiService";
 import { useAuth } from "../context/AuthContext";
+import { useProfile } from "../context/ProfileContext";
 import {
   consumePlannerSeed,
   consumeSelectedTrip,
@@ -21,6 +22,7 @@ import {
 
 const PlannerPage: React.FC = () => {
   const { user, initializing } = useAuth();
+  const { profile, updateProfile } = useProfile();
   const [itinerary, setItinerary] = useState<Itinerary | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,11 +89,21 @@ const PlannerPage: React.FC = () => {
       setError(null);
       setItinerary(null);
       setCitations([]);
-      setActivePreferences({ ...preferences });
+      const enrichedPreferences: UserPreferences = {
+        ...preferences,
+        visitedPlaces: profile.visitedPlaces,
+      };
+      setActivePreferences({ ...enrichedPreferences });
       setSaveFeedback(null);
       setTripIsSaved(false);
+      Promise.resolve(
+        updateProfile({
+          likes: preferences.preferences,
+          dislikes: preferences.dislikes,
+        })
+      ).catch(() => undefined);
       try {
-        const result = await generateItinerary(preferences);
+        const result = await generateItinerary(enrichedPreferences);
         setItinerary(result.itinerary);
         setCitations(result.citations);
       } catch (err) {
@@ -104,7 +116,7 @@ const PlannerPage: React.FC = () => {
         setIsLoading(false);
       }
     },
-    []
+    [profile.visitedPlaces, updateProfile]
   );
 
   useEffect(() => {
@@ -190,6 +202,10 @@ const PlannerPage: React.FC = () => {
             isLoading={isLoading}
             seed={plannerSeed}
             onSeedConsumed={() => setPlannerSeedState(null)}
+            profileDefaults={{
+              preferences: profile.likes,
+              dislikes: profile.dislikes,
+            }}
           />
         </div>
         <div className="lg:col-span-8">
