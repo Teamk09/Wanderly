@@ -1,33 +1,7 @@
+import { GoogleGenAI } from "@google/genai";
 import { Itinerary, UserPreferences, GroundingChunk } from "../types";
-import { auth } from "./firebaseClient";
-interface GeminiContentPart {
-  text?: string;
-}
 
-interface GeminiContent {
-  parts?: GeminiContentPart[];
-}
-
-interface GeminiGroundingChunk {
-  web?: { uri?: string; title?: string };
-  maps?: { uri?: string; title?: string };
-  [key: string]: unknown;
-}
-
-interface GeminiCandidate {
-  content?: GeminiContent;
-  groundingMetadata?: {
-    groundingChunks?: GeminiGroundingChunk[];
-  };
-}
-
-interface GeminiResponse {
-  candidates?: GeminiCandidate[];
-}
-
-const GEMINI_PROXY_URL = import.meta.env.VITE_GEMINI_PROXY_URL as
-  | string
-  | undefined;
+const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
 
 const createPrompt = (preferences: UserPreferences): string => {
   const {
@@ -116,50 +90,25 @@ const createPrompt = (preferences: UserPreferences): string => {
 export const generateItinerary = async (
   preferences: UserPreferences
 ): Promise<{ itinerary: Itinerary; citations: GroundingChunk[] }> => {
-  if (!GEMINI_PROXY_URL) {
-    throw new Error("Gemini proxy URL is not configured.");
-  }
-
   let rawText = "";
   try {
     const prompt = createPrompt(preferences);
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-      throw new Error(
-        "You need to be signed in before generating an itinerary."
-      );
-    }
-
-    const idToken = await currentUser.getIdToken();
-
-    const response = await fetch(GEMINI_PROXY_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${idToken}`,
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        tools: [{ googleSearch: {} }],
       },
-      body: JSON.stringify({ prompt }),
     });
 
-    if (response.status === 401) {
-      throw new Error("Session expired. Please sign in again.");
-    }
-
-    if (!response.ok) {
-      const errorBody = await response.text();
-      console.error("Gemini proxy error:", errorBody);
-      throw new Error("Gemini service returned an error.");
-    }
-
-    const data: GeminiResponse = await response.json();
-    rawText = extractModelText(data).trim();
+    rawText = response.text.trim();
     const jsonMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
     const jsonText = jsonMatch ? jsonMatch[1] : rawText;
 
     const itinerary: Itinerary = JSON.parse(jsonText);
 
-    const citations = (data.candidates?.[0]?.groundingMetadata
-      ?.groundingChunks ?? []) as GeminiGroundingChunk[];
+    const citations =
+      response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
 
     const validCitations: GroundingChunk[] = citations
       .filter(
@@ -181,15 +130,3 @@ export const generateItinerary = async (
     throw new Error("Could not connect to the itinerary generation service.");
   }
 };
-
-function extractModelText(data: GeminiResponse): string {
-  const candidate = data.candidates?.[0];
-  if (!candidate?.content?.parts?.length) {
-    return "";
-  }
-
-  return candidate.content.parts
-    .map((part) => part.text ?? "")
-    .join("\n")
-    .trim();
-}
