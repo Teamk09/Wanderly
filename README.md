@@ -1,5 +1,10 @@
 ## Run Locally
 
+### Team Members:
+- Cameron Kerestus
+- Aidan Yokanovich
+- Egi Rama
+
 **Prerequisites:** Node.js
 
 1. Install dependencies:
